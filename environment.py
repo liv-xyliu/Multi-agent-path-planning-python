@@ -433,7 +433,7 @@ class MultiAgentPathfindingEnv(gym.Env):
             'completed_tasks': self.completed_tasks,
             'timestep': self.timestep,
             'num_active_tasks': len([t for t in self.tasks if t.assigned_robot is not None]),
-            'num_revealed_tasks': len([t for t in self.tasks if t.revealed and not t.is_closed()])
+            'num_revealed_tasks': len([t for t in self.tasks if t.revealed and not t.is_closed()]),
             'invalid_move_count': self.invalid_move_count,
             'collision_avoidance_count': self.collision_avoidance_count,
             'forced_wait_count': self.forced_wait_count
