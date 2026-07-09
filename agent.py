@@ -100,64 +100,63 @@ class MultiTaskSchedulingAgent(BaseAgent):
         reserved_next = set()
 
         def astar_next_step(start, goal, blocked):
+            """
+            Use A* search to find the next cell from start to goal.
+            """
+            if start == goal:
+                return None
 
-    if start == goal:
-        return None
+            def heuristic(pos):
+                return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
 
-    def heuristic(pos):
-        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+            open_set = PriorityQueue()
+            open_set.put((heuristic(start), 0, start))
 
-    open_set = PriorityQueue()
-    open_set.put((heuristic(start), 0, start))
+            parent = {start: None}
+            g_score = {start: 0}
 
-    parent = {start: None}
-    g_score = {start: 0}
+            dirs = [(0, -1), (1, 0), (0, 1), (-1, 0)]
 
-    dirs = [(0, -1), (1, 0), (0, 1), (-1, 0)]
+            while not open_set.empty():
+                _, current_cost, current = open_set.get()
 
-    while not open_set.empty():
-        _, current_cost, current = open_set.get()
+                if current == goal:
+                    break
 
-        if current == goal:
-            break
+                x, y = current
 
-        x, y = current
+                for dx, dy in dirs:
+                    nx, ny = x + dx, y + dy
+                    next_cell = (nx, ny)
 
-        for dx, dy in dirs:
-            nx, ny = x + dx, y + dy
-            next_cell = (nx, ny)
+                    if nx < 0 or nx >= self.grid_width or ny < 0 or ny >= self.grid_height:
+                        continue
 
-            # Check grid boundary
-            if nx < 0 or nx >= self.grid_width or ny < 0 or ny >= self.grid_height:
-                continue
+                    if self.env.grid[ny, nx] == 1:
+                        continue
 
-            # Check obstacles
-            if self.env.grid[ny, nx] == 1:
-                continue
+                    if next_cell in blocked and next_cell != goal:
+                        continue
 
-            # Avoid blocked cells, unless the blocked cell is the goal
-            if next_cell in blocked and next_cell != goal:
-                continue
+                    new_cost = g_score[current] + 1
 
-            new_cost = g_score[current] + 1
+                    if next_cell not in g_score or new_cost < g_score[next_cell]:
+                        g_score[next_cell] = new_cost
+                        priority = new_cost + heuristic(next_cell)
+                        open_set.put((priority, new_cost, next_cell))
+                        parent[next_cell] = current
 
-            if next_cell not in g_score or new_cost < g_score[next_cell]:
-                g_score[next_cell] = new_cost
-                priority = new_cost + heuristic(next_cell)
-                open_set.put((priority, new_cost, next_cell))
-                parent[next_cell] = current
+            if goal not in parent:
+                return None
 
-    if goal not in parent:
-        return None
+            cur = goal
+            while parent[cur] is not None and parent[cur] != start:
+                cur = parent[cur]
 
-    cur = goal
-    while parent[cur] is not None and parent[cur] != start:
-        cur = parent[cur]
+            if parent[cur] is None:
+                return None
 
-    if parent[cur] is None:
-        return None
-
-    return cur
+            return cur
 
         for robot in robots:
             task_id = robot.task_id
