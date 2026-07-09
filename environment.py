@@ -217,13 +217,13 @@ class MultiAgentPathfindingEnv(gym.Env):
         
         return self._get_observation(), reward, done, False, self._get_info()
     
-    def _validate_actions(self, actions: Tuple[List[int],List[int]]) -> Tuple[List[int],List[int]]:
+    def _validate_actions(self, actions: Tuple[List[int], List[int]]) -> Tuple[List[int], List[int]]:
         moves, assignments = actions
         valid_moves = self._validate_moves(moves)
         valid_assignments = self._validate_assignments(assignments)
         return valid_moves, valid_assignments
 
-        def _validate_moves(self, actions: List[int]) -> List[int]:
+    def _validate_moves(self, actions: List[int]) -> List[int]:
         """Validate actions to prevent invalid moves and robot collisions."""
         valid_actions = actions[:]
 
