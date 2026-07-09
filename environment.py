@@ -181,6 +181,11 @@ class MultiAgentPathfindingEnv(gym.Env):
         self.timestep = 0
         self.revealed_tasks = 0
         
+        #metric
+        self.invalid_move_count = 0
+        self.collision_avoidance_count = 0
+        self.forced_wait_count = 0
+        
         # Generate initial revealed tasks
         self._generate_initial_tasks()
         
@@ -218,55 +223,67 @@ class MultiAgentPathfindingEnv(gym.Env):
         valid_assignments = self._validate_assignments(assignments)
         return valid_moves, valid_assignments
 
-    def _validate_moves(self, actions: List[int]) -> List[int]:
-        """Validate actions to prevent collisions"""
+        def _validate_moves(self, actions: List[int]) -> List[int]:
+        """Validate actions to prevent invalid moves and robot collisions."""
         valid_actions = actions[:]
-        
-        # Check for collisions
+
+        # Metrics are counted when an intended action is changed to WAIT.
+        def force_wait(robot_id: int, reason: str):
+            if valid_actions[robot_id] != Action.WAIT:
+                valid_actions[robot_id] = Action.WAIT
+                self.forced_wait_count += 1
+
+                if reason == "collision":
+                    self.collision_avoidance_count += 1
+                else:
+                    self.invalid_move_count += 1
+
         next_positions = {}
         edges = {}
-        
+
         for i, action in enumerate(actions):
             robot = self.robots[i]
-            
+
             if action == Action.MOVE_FORWARD:
                 next_x, next_y = robot.get_forward_position()
-                
+
                 # Check bounds and obstacles
-                if (next_x < 0 or next_x >= self.grid_width or 
-                    next_y < 0 or next_y >= self.grid_height or
-                    self.grid[next_y, next_x] == 1):
-                    valid_actions[i] = Action.WAIT
+                if (
+                    next_x < 0 or next_x >= self.grid_width
+                    or next_y < 0 or next_y >= self.grid_height
+                    or self.grid[next_y, next_x] == 1
+                ):
+                    force_wait(i, "invalid")
                     continue
-                
-                # Check vertex collision
+
+                # Check vertex collision: two robots moving into the same cell
                 if (next_x, next_y) in next_positions:
-                    valid_actions[i] = Action.WAIT
-                    valid_actions[next_positions[(next_x, next_y)]] = Action.WAIT
+                    force_wait(i, "collision")
+                    force_wait(next_positions[(next_x, next_y)], "collision")
                     continue
-                
-                # Check edge collision
+
+                # Check edge collision: two robots crossing the same edge
                 edge = tuple(sorted([(robot.x, robot.y), (next_x, next_y)]))
                 if edge in edges:
-                    valid_actions[i] = Action.WAIT
-                    valid_actions[edges[edge]] = Action.WAIT
+                    force_wait(i, "collision")
+                    force_wait(edges[edge], "collision")
                     continue
-                
+
                 next_positions[(next_x, next_y)] = i
                 edges[edge] = i
+
             else:
-                # If the current robot position clashes with a prior one, the prior one must WAIT
-                # This might mean that it's position clashes, with a prior one, etc, so we must resolve all of these.
+                # If another robot is moving into this robot's current position,
+                # force the blocking robot to wait.
                 if (robot.x, robot.y) in next_positions:
                     blocking_robot = robot
                     while (blocking_robot.x, blocking_robot.y) in next_positions:
                         blocked_robot = self.robots[next_positions[(blocking_robot.x, blocking_robot.y)]]
-                        valid_actions[blocked_robot.id] = Action.WAIT
+                        force_wait(blocked_robot.id, "collision")
                         blocking_robot = blocked_robot
 
-
                 next_positions[(robot.x, robot.y)] = i
-        
+
         return valid_actions
     
     def _validate_assignments(self, actions: List[int]) -> List[int]:
@@ -417,6 +434,9 @@ class MultiAgentPathfindingEnv(gym.Env):
             'timestep': self.timestep,
             'num_active_tasks': len([t for t in self.tasks if t.assigned_robot is not None]),
             'num_revealed_tasks': len([t for t in self.tasks if t.revealed and not t.is_closed()])
+            'invalid_move_count': self.invalid_move_count,
+            'collision_avoidance_count': self.collision_avoidance_count,
+            'forced_wait_count': self.forced_wait_count
         }
     
     # Model-based search interface methods
