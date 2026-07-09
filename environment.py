@@ -136,7 +136,7 @@ class MultiAgentPathfindingEnv(gym.Env):
         # Observation space: grid + robot states + task info
         obs_size = (self.grid_height * self.grid_width +  # grid
                    self.num_robots * 4 +  # robot states (x, y, dir, task_id)
-                   100)  # task information (simplified)
+                   400)  # task information (simplified)
         self.observation_space = spaces.Box(
             low=0, high=max(self.grid_height, self.grid_width, self.num_robots),
             shape=(obs_size,), dtype=np.int32
