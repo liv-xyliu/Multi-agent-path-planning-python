@@ -99,44 +99,65 @@ class MultiTaskSchedulingAgent(BaseAgent):
 
         reserved_next = set()
 
-        def bfs_next_step(start, goal, blocked):
-            q = deque()
-            q.append(start)
-            parent = {start: None}
-            dirs = [(0, -1), (1, 0), (0, 1), (-1, 0)]
+        def astar_next_step(start, goal, blocked):
 
-            while q:
-                x, y = q.popleft()
+    if start == goal:
+        return None
 
-                if (x, y) == goal:
-                    break
+    def heuristic(pos):
+        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
 
-                for dx, dy in dirs:
-                    nx, ny = x + dx, y + dy
+    open_set = PriorityQueue()
+    open_set.put((heuristic(start), 0, start))
 
-                    if nx < 0 or nx >= self.grid_width or ny < 0 or ny >= self.grid_height:
-                        continue
-                    if self.env.grid[ny, nx] == 1:
-                        continue
-                    if (nx, ny) in blocked and (nx, ny) != goal:
-                        continue
-                    if (nx, ny) in parent:
-                        continue
+    parent = {start: None}
+    g_score = {start: 0}
 
-                    parent[(nx, ny)] = (x, y)
-                    q.append((nx, ny))
+    dirs = [(0, -1), (1, 0), (0, 1), (-1, 0)]
 
-            if goal not in parent:
-                return None
+    while not open_set.empty():
+        _, current_cost, current = open_set.get()
 
-            cur = goal
-            while parent[cur] is not None and parent[cur] != start:
-                cur = parent[cur]
+        if current == goal:
+            break
 
-            if parent[cur] is None:
-                return None
+        x, y = current
 
-            return cur
+        for dx, dy in dirs:
+            nx, ny = x + dx, y + dy
+            next_cell = (nx, ny)
+
+            # Check grid boundary
+            if nx < 0 or nx >= self.grid_width or ny < 0 or ny >= self.grid_height:
+                continue
+
+            # Check obstacles
+            if self.env.grid[ny, nx] == 1:
+                continue
+
+            # Avoid blocked cells, unless the blocked cell is the goal
+            if next_cell in blocked and next_cell != goal:
+                continue
+
+            new_cost = g_score[current] + 1
+
+            if next_cell not in g_score or new_cost < g_score[next_cell]:
+                g_score[next_cell] = new_cost
+                priority = new_cost + heuristic(next_cell)
+                open_set.put((priority, new_cost, next_cell))
+                parent[next_cell] = current
+
+    if goal not in parent:
+        return None
+
+    cur = goal
+    while parent[cur] is not None and parent[cur] != start:
+        cur = parent[cur]
+
+    if parent[cur] is None:
+        return None
+
+    return cur
 
         for robot in robots:
             task_id = robot.task_id
@@ -170,7 +191,7 @@ class MultiTaskSchedulingAgent(BaseAgent):
             blocked.discard(start)
             blocked |= reserved_next
 
-            next_cell = bfs_next_step(start, goal, blocked)
+            next_cell = astar_next_step(start, goal, blocked)
 
             if next_cell is None:
                 moves[robot.id] = Action.WAIT
